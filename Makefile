@@ -1,4 +1,4 @@
-STUID = ysyx_22040000
+STUID = ysyx_22040001
 STUNAME = Shuzuna
 
 # DO NOT modify the following code!!!
