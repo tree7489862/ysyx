@@ -1,0 +1,8 @@
+top=top
+
+command_input (BTNU,BTNC,BTND)
+a_input (SW8,SW7,SW6,SW5)
+b_input (SW3,SW2,SW1,SW0)
+en SW10
+ans (LD7,LD6,LD5,LD4)
+overflow_flag (LD1,LD0)

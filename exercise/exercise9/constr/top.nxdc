@@ -1,0 +1,5 @@
+top=top
+
+sw (SW0)
+led (LD0)
+clk_t (LD1)
