@@ -17,6 +17,7 @@
 #include <cpu/cpu.h>
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <memory/vaddr.h>
 #include "sdb.h"
 
 static int is_batch_mode = false;
@@ -52,6 +53,46 @@ static int cmd_q(char *args) {
   return -1;
 }
 
+static int cmd_si(char *args) {
+  char *arg = strtok(NULL," ");
+  int steps = 0;
+  if(arg == NULL){
+    cpu_exec(1);
+    return 0;
+  }
+  sscanf(arg, "%d", &steps);
+  if(steps < -1){
+    printf("Error, N shouldn't be less than 0.");
+    return 0;
+  }
+  cpu_exec(steps);
+  return 0;
+}
+
+static int cmd_info(char *args) {
+  char *arg = strtok(NULL," ");
+  if(strcmp(arg, "r") == 0){
+    isa_reg_display();
+  }
+  return 0;
+}
+
+static int cmd_x(char *args) {
+  char *N = strtok(NULL," ");
+  char *EXPR = strtok(NULL," ");
+  int len;
+  vaddr_t address;
+  sscanf(N, "%d", &len);
+  sscanf(EXPR, "%x", &address); 
+  for(int i = 0; i < len; i++){
+    printf("0x%x:", address);
+    printf("%08x\n", vaddr_read(address,4));
+    address = address + 4; 
+  }
+  return 0;
+}
+
+
 static int cmd_help(char *args);
 
 static struct {
@@ -64,7 +105,9 @@ static struct {
   { "q", "Exit NEMU", cmd_q },
 
   /* TODO: Add more commands */
-
+  { "si", "Single-step exection",cmd_si},
+  { "info", "Register detailed information", cmd_info},
+  { "x", "Scan memory", cmd_x},
 };
 
 #define NR_CMD ARRLEN(cmd_table)
