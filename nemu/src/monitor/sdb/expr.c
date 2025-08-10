@@ -22,7 +22,9 @@
 
 enum {
   TK_NOTYPE = 256, TK_EQ,
-
+  TK_NUM,
+  TK_REG,
+  TK_VAR,
   /* TODO: Add more token types */
 
 };
@@ -38,7 +40,16 @@ static struct rule {
 
   {" +", TK_NOTYPE},    // spaces
   {"\\+", '+'},         // plus
-  {"==", TK_EQ},        // equal
+  {"-", '-'},
+  {"\\*", '*'},
+  {"/", '/'},
+  {"==", TK_EQ},  // equal
+  {"\\(", '('},
+  {"\\)", ')'},
+
+  {"[0-9]+", TK_NUM},
+  {"\\$\\w+", TK_REG},
+  {"[A-Za-z_]\\w*", TK_VAR},
 };
 
 #define NR_REGEX ARRLEN(rules)
@@ -67,7 +78,7 @@ typedef struct token {
   char str[32];
 } Token;
 
-static Token tokens[32] __attribute__((used)) = {};
+static Token tokens[2048] __attribute__((used)) = {};
 static int nr_token __attribute__((used))  = 0;
 
 static bool make_token(char *e) {
@@ -84,10 +95,13 @@ static bool make_token(char *e) {
         char *substr_start = e + position;
         int substr_len = pmatch.rm_eo;
 
-        Log("match rules[%d] = \"%s\" at position %d with len %d: %.*s",
-            i, rules[i].regex, position, substr_len, substr_len, substr_start);
+        //Log("match rules[%d] = \"%s\" at position %d with len %d: %.*s",
+            //i, rules[i].regex, position, substr_len, substr_len, substr_start);
 
         position += substr_len;
+        if (rules[i].token_type == TK_NOTYPE) break;
+        
+        tokens[nr_token].type = rules[i].token_type;
 
         /* TODO: Now a new token is recognized with rules[i]. Add codes
          * to record the token in the array `tokens'. For certain types
@@ -95,9 +109,13 @@ static bool make_token(char *e) {
          */
 
         switch (rules[i].token_type) {
-          default: TODO();
+          case TK_NUM:
+          case TK_REG:
+          case TK_VAR:
+            strncpy(tokens[nr_token].str, substr_start, substr_len);
+            tokens[nr_token].str[substr_len] = '\0';
         }
-
+	nr_token++;
         break;
       }
     }
@@ -111,6 +129,90 @@ static bool make_token(char *e) {
   return true;
 }
 
+bool check_parentheses(int p, int q) {
+  if (tokens[p].type=='(' && tokens[q].type==')') {
+    int par = 0;
+    for (int i = p; i <= q; i++) {
+      if (tokens[i].type=='(') par++;
+      else if (tokens[i].type==')') par--;
+
+      if (par == 0) return i==q; // the leftest parenthese is matched
+    }
+  }
+  return false;
+}
+
+int find_major(int p, int q) {
+  int ret = -1, par = 0, op_type = 0;
+  for (int i = p; i <= q; i++) {
+    if (tokens[i].type == TK_NUM) {
+      continue;
+    }
+    if (tokens[i].type == '(') {
+      par++;
+    } else if (tokens[i].type == ')') {
+      if (par == 0) {
+        return -1;
+      }
+      par--;
+    } else if (par > 0) {
+      continue;
+    } else {
+      int tmp_type = 0;
+      switch (tokens[i].type) {
+      case '*': case '/': tmp_type = 1; break;
+      case '+': case '-': tmp_type = 2; break;
+      default: assert(0);
+      }
+      if (tmp_type >= op_type) {
+        op_type = tmp_type;
+        ret = i;
+      }
+    }
+  }
+  if (par != 0) return -1;
+  return ret;
+}
+
+word_t eval(int p, int q, bool *ok) {
+  *ok = true;
+  if (p > q) {
+    *ok = false;
+    return 0;
+  } else if (p == q) {
+    if (tokens[p].type != TK_NUM) {
+      *ok = false;
+      return 0;
+    }
+    word_t ret = strtol(tokens[p].str, NULL, 10);
+    return ret;
+  } else if (check_parentheses(p, q)) {
+    return eval(p+1, q-1, ok);
+  } else {    
+    int major = find_major(p, q);
+    if (major < 0) {
+      *ok = false;
+      return 0;
+    }
+
+    word_t val1 = eval(p, major-1, ok);
+    if (!*ok) return 0;
+    word_t val2 = eval(major+1, q, ok);
+    if (!*ok) return 0;
+    
+    switch(tokens[major].type) {
+      case '+': return val1 + val2;
+      case '-': return val1 - val2;
+      case '*': return val1 * val2;
+      case '/': if (val2 == 0) {
+        *ok = false;
+        return 0;
+      } 
+      return (sword_t)val1 / (sword_t)val2; // e.g. -1/2, may not pass the expr test
+      default: assert(0);
+    }
+  }
+}
 
 word_t expr(char *e, bool *success) {
   if (!make_token(e)) {
@@ -118,8 +220,9 @@ word_t expr(char *e, bool *success) {
     return 0;
   }
 
+  return eval(0,nr_token-1,success);
   /* TODO: Insert codes to evaluate the expression. */
-  TODO();
+  // TODO();
 
-  return 0;
+  // return 0;
 }

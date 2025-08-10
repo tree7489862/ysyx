@@ -20,6 +20,8 @@
 #include <memory/vaddr.h>
 #include "sdb.h"
 
+#define NR_REGEX (sizeof(rules) / sizeof(rules[0]))
+
 static int is_batch_mode = false;
 
 void init_regex();
@@ -93,6 +95,17 @@ static int cmd_x(char *args) {
 }
 
 
+static int cmd_p(char* args) {
+  bool success;
+  word_t res = expr(args, &success);
+  if (!success) {
+    puts("invalid expression");
+  } else {
+    printf("%u\n", res);
+  }
+  return 0;
+}
+
 static int cmd_help(char *args);
 
 static struct {
@@ -108,6 +121,8 @@ static struct {
   { "si", "Single-step exection",cmd_si},
   { "info", "Register detailed information", cmd_info},
   { "x", "Scan memory", cmd_x},
+  { "p", "Calculate the expression", cmd_p }
+
 };
 
 #define NR_CMD ARRLEN(cmd_table)
@@ -177,10 +192,44 @@ void sdb_mainloop() {
   }
 }
 
+void test_expr() {
+  FILE *fp = fopen("/home/tree/ysyx-workbench/nemu/tools/gen-expr/build/input", "r");
+  if (fp == NULL) perror("test_expr error");
+
+  char *e = NULL;
+  word_t correct_res;
+  size_t len = 0;
+  ssize_t read;
+  bool success = false;
+
+  while (true) {
+    if(fscanf(fp, "%u ", &correct_res) == -1) break;
+    read = getline(&e, &len, fp);
+    e[read-1] = '\0';
+    
+    //word_t res = expr(e, &success);
+    word_t res = expr(e, &success);
+    
+    assert(success);
+    if (res != correct_res) {
+      puts(e);
+      printf("expected: %u, got: %u\n", correct_res, res);
+      assert(0);
+    }
+  }
+
+
+  fclose(fp);
+  if (e) free(e);
+
+  Log("expr test pass");
+}
+
 void init_sdb() {
   /* Compile the regular expressions. */
   init_regex();
-
+  test_expr();
+  printf("The expressions are all calculated correctly\n");
   /* Initialize the watchpoint pool. */
   init_wp_pool();
 }
